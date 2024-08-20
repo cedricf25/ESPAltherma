@@ -1,6 +1,6 @@
 //Setup your credentials and mqtt info here:
 //only change the value between the " " leave the rest of the line untouched.
-#define WIFI_SSID "SSID"//**Your SSID here**
+#define WIFI_SSID "Freebox_SYCE"//**Your SSID here**
 #define WIFI_PWD "password"//**Your password here** leave empty if open (bad!)
 
 //Uncomment this to set a static IP instead of DHCP for the ESP (Separate by commas instead of dots)
@@ -10,23 +10,17 @@
 //#define WIFI_PRIMARY_DNS 8, 8, 8, 8     //A DNS address is needed, even if it's not used 
 //#define WIFI_SECONDARY_DNS 8, 8, 4, 4   //A DNS address is needed, even if it's not used
 
-#define MQTT_SERVER "192.168.1.4"//**IP address here of your MQTT server**
-#define MQTT_USERNAME ""//leave empty if not set (bad!)
-#define MQTT_PASSWORD ""//leave empty if not set (bad!)
+#define MQTT_SERVER "192.168.0.9"//**IP address here of your MQTT server**
+#define MQTT_USERNAME "altherma"//leave empty if not set (bad!)
+#define MQTT_PASSWORD "password"//leave empty if not set (bad!)
 #define MQTT_PORT 1883
 //#define MQTT_ENCRYPTED // uncomment if MQTT connection is encrypted via TLS
 
-#define FREQUENCY 30000 //query values every 30 sec
+#define FREQUENCY 6000 //query values every 30 sec
 
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5Stick_C_Plus2)
 // Values used when M5StickC, M5STickCPlus or M5Stick_C_Plus2 environment is selected:
 #define RX_PIN    36// Pin connected to the TX pin of X10A 
 #define TX_PIN    26// Pin connected to the RX pin of X10A
-#else 
-//Default GPIO PINs for Serial2:
-#define RX_PIN    16// Pin connected to the TX pin of X10A 
-#define TX_PIN    17// Pin connected to the RX pin of X10A
-#endif
 
 #define PIN_THERM 0// Pin connected to the thermostat relay (normally open)
 #define PIN_THERM_ACTIVE_STATE HIGH// State to trigger the thermostat relay
@@ -89,7 +83,7 @@
 //#include "def/Altherma(EGSQH-A series 10kW GEO2).h"
 //#include "def/Altherma(EPGA D EAB-EAV-EAVZ D(J) series 11-16kW).h"
 //#include "def/Altherma(EPRA D ETSH-X 16P30-50 D series 14-16kW-ECH2O).h"
-//#include "def/Altherma(EPRA D ETV16-ETB16-ETVZ16 D series 14-16kW).h"
+#include "def/French/Altherma(EPRA D ETV16-ETB16-ETVZ16 D series 14-16kW).h"
 //#include "def/Altherma(EPRA D_D7 ETSH-X 16P30-50 E_E7 series 14-18kW-ECH2O).h"
 //#include "def/Altherma(EPRA D_D7 ETV16-ETB16-ETVZ16 E_E7 series 14-18kW).h"
 //#include "def/Altherma(EPRA E ETSH-X 16P30-50 E series 8-12kW-ECH2O).h"
