@@ -30,7 +30,9 @@ Ce dépôt est configuré pour l'installation réelle du propriétaire — en te
 - SCOP 4,51 à 35 °C / 3,58 à 55 °C ; ETAS 177 % à 35 °C / 140 % à 55 °C. Thermostat d'ambiance Daikin Madoka.
 - Surface chauffée 160 m², en remplacement d'une chaudière fioul basse température.
 
-Définitions pertinentes : série **EPRA D 14-18 kW avec intérieure ETV/ETB/ETVZ16**, protocole **I**. `src/setup.h` pointe actuellement sur `def/French/Altherma(EPRA D ETV16-ETB16-ETVZ16 D series 14-16kW).h` ; `Altherma(EPRA D_D7 ETV16-ETB16-ETVZ16 E_E7 series 14-18kW).h` (racine, non traduit) couvre la taille 18. Les définitions LT, Monobloc, GEO, ECH2O et Mini chiller ne concernent pas cette machine.
+Définitions pertinentes : série **EPRA D 14-18 kW avec intérieure ETV/ETB/ETVZ16**, protocole **I**. `src/setup.h` pointe sur `def/French/Altherma(EPRA D_D7 ETV16-ETB16-ETVZ16 E_E7 series 14-18kW).h`, qui couvre la taille 18 (l'ancien `... D series 14-16kW).h` reste dans le dépôt, ses 84 labels toujours activés). Les définitions LT, Monobloc, GEO, ECH2O et Mini chiller ne concernent pas cette machine.
+
+Différences entre les deux définitions (le reste des registres est identique) : `0x63,13` "BUH capacité de sortie" utilise le convid **152** (14-18) au lieu de **311** (14-16), qui n'existe pas dans `converters.h` et produisait `Conv 311 not avail.` ; `0x63` offsets 8/10/11/12 et `0x62,8` bits 305-307/336 sont redéfinis (libellés « Not translated yet », les convid 317/323/336 restant non gérés par `converters.h` — ne pas les activer) ; le registre **`0x65`** est ajouté (hydro split DLWB2, kit bizone EKMIK) — non applicable ici, laissé commenté.
 
 ## Configuration (avant tout build)
 
