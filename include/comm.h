@@ -25,11 +25,18 @@ unsigned char getCRC(unsigned char *src, int len)
 void logBuffer(unsigned char *buffer, size_t len)
 {
   char bufflog[250] = {0};
-  for (size_t i = 0; i < len; i++)
+  // 5 caracteres par octet + le terminateur: au dela on deborderait bufflog
+  const size_t maxBytes = (sizeof(bufflog) - 1) / 5;
+  size_t shown = len > maxBytes ? maxBytes : len;
+  for (size_t i = 0; i < shown; i++)
   {
     sprintf(bufflog + i * 5, "0x%02x ", buffer[i]);
   }
   mqttSerial.print(bufflog);
+  if (shown < len)
+  {
+    mqttSerial.printf("... (%u octets au total)\n", (unsigned)len);
+  }
 }
 
 int get_reply_len(char regID, char protocol='I')
@@ -55,7 +62,7 @@ int get_reply_len(char regID, char protocol='I')
   }
 }
 
-bool queryRegistry(char regID, unsigned char *buffer, char protocol='I')
+bool queryRegistry(char regID, unsigned char *buffer, char protocol='I', int bufferSize=64)
 {
 
   //preparing command:
@@ -81,7 +88,7 @@ bool queryRegistry(char regID, unsigned char *buffer, char protocol='I')
   int len = 0;
   int replyLen = get_reply_len(regID, protocol);
 
-  while ((len < replyLen) && (millis() < (start + SER_TIMEOUT)))
+  while ((len < replyLen) && (len < bufferSize) && (millis() < (start + SER_TIMEOUT)))
   {
     if (MySerial.available())
     {
@@ -90,6 +97,15 @@ bool queryRegistry(char regID, unsigned char *buffer, char protocol='I')
       {
         // Override reply length with the actual one (not counting already read bytes, see doc/Daikin I protocol.md)
         replyLen = buffer[2] + 2;
+        if (replyLen > bufferSize)
+        {
+          // Un registre inconnu peut annoncer jusqu'a 257 octets: on ne peut pas
+          // les stocker, et continuer ecraserait la pile de l'appelant.
+          mqttSerial.printf("ERR: reponse de 0x%02x trop longue (%d octets, buffer %d)\n",
+                            regID, replyLen, bufferSize);
+          delay(500);
+          return false;
+        }
       }
       // Error reply common to both protocols
       if (len == 2 && buffer[0] == 0x15 && buffer[1] == 0xea)

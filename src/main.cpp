@@ -301,6 +301,29 @@ void setupScreen(){
 
 }
 
+#ifdef SCAN_ALL_REGISTRIES
+// Interroge une fois les 256 registres possibles pour reperer ceux que la machine
+// accepte, y compris ceux absents des fichiers def/. Les trames brutes sont deja
+// tracees par queryRegistry() sur espaltherma/log.
+void scanAllRegistries()
+{
+  unsigned char buff[64] = {0};
+  int found = 0;
+  mqttSerial.printf("SCAN: debut du balayage 0x00-0xFF\n");
+  for (int reg = 0; reg <= 0xFF; reg++)
+  {
+    extraLoop(); // garder MQTT et OTA vivants pendant le balayage
+    memset(buff, 0, sizeof(buff));
+    if (queryRegistry((char)reg, buff, PROTOCOL))
+    {
+      found++;
+      mqttSerial.printf("SCAN: 0x%02x REPOND\n", reg);
+    }
+  }
+  mqttSerial.printf("SCAN: termine, %d registres repondent\n", found);
+}
+#endif
+
 void setup()
 {
   Serial.begin(115200);
@@ -362,6 +385,9 @@ void setup()
   mqttSerial.println("OK!");
 
   initRegistries();
+#ifdef SCAN_ALL_REGISTRIES
+  scanAllRegistries();
+#endif
   mqttSerial.print("ESPAltherma started!");
 }
 

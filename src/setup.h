@@ -50,6 +50,11 @@
 #define SG_RELAY_INACTIVE_STATE LOW
 #endif
 
+//Decommenter pour balayer une fois les 256 registres au demarrage et reperer
+//ceux que la machine accepte (resultat sur le topic espaltherma/log).
+//Ajoute ~3 min au boot. A recommenter apres analyse.
+#define SCAN_ALL_REGISTRIES
+
 #define MAX_MSG_SIZE 7120//max size of the json message sent in mqtt 
 
 //Uncomment this line if the JSON message should be in a Json Table format []. Use only for IOBroker Vis. 
