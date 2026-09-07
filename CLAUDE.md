@@ -30,6 +30,28 @@ Ce dépôt est configuré pour l'installation réelle du propriétaire — en te
 - SCOP 4,51 à 35 °C / 3,58 à 55 °C ; ETAS 177 % à 35 °C / 140 % à 55 °C. Thermostat d'ambiance Daikin Madoka.
 - Surface chauffée 160 m², en remplacement d'une chaudière fioul basse température.
 
+### Registres réellement exposés par la machine
+
+Balayage complet `0x00`-`0xFF` effectué le 2026-09-07 (macro `SCAN_ALL_REGISTRIES`) :
+**14 registres répondent**, tous déjà décrits par le fichier `def/` — aucun registre
+inconnu à découvrir.
+
+```
+0x00 0x10 0x11 0x20 0x21 0x30 0x60 0x61 0x62 0x63 0x64 0x65 0xA0 0xA1
+```
+
+- `0x65` **répond** (données valides, offset 0 = `0x80`), ce qui confirme le bizone.
+  Son offset 2 porte une température exploitable ; les offsets 4 et 6, libellés
+  « [EKMIK] », restent à zéro — normal, l'ETVZ mélange en interne sans ce kit externe.
+- **Piège sur `0x00`** : la machine ne renvoie que **10 octets** de données, alors que
+  le fichier `def/` définit des labels aux offsets 10, 11 et 12 (`O/U MPU ID`,
+  `Capacité O/U`). Les activer ferait lire **hors trame**. Ne pas les décommenter.
+- `0x11` renvoie 6 octets, qui correspondent exactement aux 6 labels EEPROM de
+  l'unité extérieure (offsets 0-5) — identification, sans intérêt pour la régulation.
+
+Le mode scan reste disponible mais doit rester **commenté** : il ajoute ~3 min à
+chaque démarrage.
+
 ### Installation bizone
 
 L'ETVZ16 est une unité **bizone native** (le « Z » du modèle) — pas besoin du kit externe EKMIK.
