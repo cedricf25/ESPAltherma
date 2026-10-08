@@ -41,8 +41,9 @@ inconnu à découvrir.
 ```
 
 - `0x65` **répond** (données valides, offset 0 = `0x80`), ce qui confirme le bizone.
-  Son offset 2 porte une température exploitable ; les offsets 4 et 6, libellés
-  « [EKMIK] », restent à zéro — normal, l'ETVZ mélange en interne sans ce kit externe.
+  Son offset 2 (« DLWB2 ») suit la sortie d'eau de l'échangeur au 0,5 °C près ; les
+  offsets 4 et 6, libellés « [EKMIK] », restent à zéro — normal, l'ETVZ mélange en
+  interne sans ce kit externe (cf. « Ce que la machine ne publie pas »).
 - **Piège sur `0x00`** : la machine ne renvoie que **10 octets** de données, alors que
   le fichier `def/` définit des labels aux offsets 10, 11 et 12 (`O/U MPU ID`,
   `Capacité O/U`). Les activer ferait lire **hors trame**. Ne pas les décommenter.
@@ -68,6 +69,32 @@ D'après le schéma hydraulique du guide installateur (`private/doc/`, hors dép
 Attention, la nomenclature des fichiers `def/` vient de DChecker et ne correspond pas à celle du
 guide de ce modèle : `0x61,2` « Laisser temp. eau avant BUH (R1T) » et `0x61,8` « Temp. d eau
 d entrée (R4T) » ne désignent pas les mêmes sondes que les R1T/R4T du guide.
+
+### Départ plancher, mélange et réglages (vérifié le 2026-10-08)
+
+- **Départ plancher = `0x64,10`** « Température de l eau mélangée » (la R7T du guide). La machine
+  ne le transmet que **par pas de 2,56 °C** : l'octet de poids faible vaut toujours `0x00`
+  (100 trames capturées sur `espaltherma/log`, et un historique HA qui ne contient que des
+  multiples de 2,56). Le convertisseur 118 décode correctement : ne pas « corriger » `converters.h`.
+  La valeur est tronquée vers le bas (`0x0a` = 25,6 °C pour un départ réel de 27,7 °C).
+- **Ce que la machine ne publie pas** : la position de la vanne M1S. `0x65,4/6` (kit EKMIK),
+  `0x63,8` « [HPSU] … R7T » (Rotex) et les bits `0x62` « [Futur] Mélange vanne à 3 voies 1/2 »
+  restent à 0 même en plein mélange. Le taux d'ouverture n'est pas calculable non plus (un seul
+  retour commun, R1T).
+- **Sondes de référence hors ESP** : deux Shelly dans Home Assistant mesurent précisément le départ
+  et le retour du plancher (`sensor.temperature_depart_sol_temperature`,
+  `sensor.temperature_retour_sol_temperature`), et un Shelly EM la puissance électrique de la PAC.
+  S'en servir pour valider toute hypothèse sur le décodage du circuit plancher.
+- **Réglages de l'interface de la PAC** (relevés par le propriétaire) : ΔT primaire chaud **5**,
+  ΔT secondaire **12**, modulation **5**. `0x64,14` « Target delta T heating » renvoie **12**, ce qui
+  correspond au ΔT secondaire. `0x64,15` « Target delta T cooling » renvoie **3**, le ΔT de
+  refroidissement (confirmé par le propriétaire). Le ΔT primaire (5) n'est pas exposé. En pratique, le ΔT mesuré côté PAC reste
+  vers 2-3 K : la pompe principale est au minimum (signal 80) et les pompes de zone imposent le débit.
+- **Lois d'eau** : plancher (zone principale) 35 °C à −10 °C ext. → 25 °C à +20 °C ; radiateurs
+  (zone additionnelle) 60 °C à −10 °C → 30 °C à +20 °C. `0x60,9` « Point de réglage LW (principal) »
+  et `0x62,3` « Point de réglage LW (ajouté) » suivent exactement ces droites (27,8 et 38,6 °C pour ~11 °C
+  extérieur). La PAC produit à la consigne la plus haute, celle des radiateurs, et la vanne M1S
+  redescend l'eau à la consigne du plancher.
 
 Définitions pertinentes : série **EPRA D 14-18 kW avec intérieure ETV/ETB/ETVZ16**, protocole **I**. `src/setup.h` pointe sur `def/French/Altherma(EPRA D_D7 ETV16-ETB16-ETVZ16 E_E7 series 14-18kW).h`, qui couvre la taille 18 (l'ancien `... D series 14-16kW).h` reste dans le dépôt, ses 84 labels toujours activés). Les définitions LT, Monobloc, GEO, ECH2O et Mini chiller ne concernent pas cette machine.
 
