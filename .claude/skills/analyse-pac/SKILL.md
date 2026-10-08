@@ -70,7 +70,7 @@ haute pression) la rejoigne.
   (−10 °C), le décalage en mi-saison au point doux (+20 °C). Une tranche ne renseigne que sur le
   point de la droite le plus proche.
 - Confort : `etage_moins_consigne` (thermostat 1er étage → radiateurs) et `piece_madoka_moins_consigne`
-  (Madoka, supposée dans la zone plancher — à confirmer avec l'utilisateur si une conclusion en dépend).
+  (Madoka, située dans la zone plancher — confirmé par le propriétaire le 2026-10-08).
 - Indices dans `indices` : ce sont des pistes calculées par seuils, à recouper, jamais des verdicts.
 
 Recommandations de loi d'eau :
@@ -119,6 +119,12 @@ Recommandations de loi d'eau :
 - `sensor.espaltherma_target_delta_primaire` = ΔT cible **secondaire** chauffage (12),
   `…_secondaire` = ΔT de **refroidissement** (3) : les `entity_id` sont trompeurs.
 - `sensor.temperature_depart_eau_temperature` s'appelle « retour eau » dans HA mais mesure un départ.
+- **Aucun thermostat ne régule l'étage** (l'ancien thermostat Netatmo a été supprimé le 2026-10-08).
+  Côté PAC, la demande de la zone radiateurs (« Thermostat 2 ») est à ON en permanence : les
+  radiateurs ne sont régulés que par la loi d'eau (la modulation Madoka ne concerne que le plancher).
+  Le script mesure l'étage à la Mezzanine (`sensor.thermometre_mezzanine_temperature`) et le compare
+  à `confort_etage` de `reglages.json` — un repère de confort, pas une consigne. D'autres
+  thermomètres existent par pièce (`sensor.thermometre_*`, `sensor.meter_*`).
 - Heures : HA renvoie de l'UTC, le script affiche l'heure locale.
 
 ## 3. Restituer

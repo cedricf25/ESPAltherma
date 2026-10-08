@@ -43,6 +43,8 @@ NUM = {
     "rt": "sensor.espaltherma_temp_rt",
     "rt_set": "sensor.espaltherma_point_reglage_rt",
     "ecs_set": "sensor.espaltherma_point_reglage_dwh",
+    # Étage (radiateurs) : aucun thermostat ne le régule, la Mezzanine sert de repère de confort.
+    "etage": "sensor.thermometre_mezzanine_temperature",
 }
 TXT = {
     "mode": "sensor.espaltherma_operation",
@@ -51,7 +53,6 @@ TXT = {
     "buh2": "sensor.espaltherma_chauffage_appoint_2",
     "huile": "sensor.espaltherma_commande_retour_huile",
 }
-ETAGE = "climate.thermostat_1er_etage"
 PAS = 60  # secondes
 
 
@@ -163,13 +164,7 @@ def analyser(debut, fin):
                for x in par_id.get(eid, [])]
         G[cle] = grille(pts, t0, n)
         couverture[cle] = round(100 * sum(v is not None for v in G[cle]) / n) if n else 0
-    try:
-        et = historique(url, jeton, [ETAGE], debut, fin, attributs=True)[0]
-        pts_t = [(ts(x), en_float(x["attributes"].get("current_temperature"))) for x in et]
-        pts_c = [(ts(x), en_float(x["attributes"].get("temperature"))) for x in et]
-        G["etage"], G["etage_set"] = grille(pts_t, t0, n), grille(pts_c, t0, n)
-    except Exception:
-        G["etage"] = G["etage_set"] = [None] * n
+    G["etage_set"] = [reg["confort_etage"]] * n
 
     hzmin = reg["references"]["compresseur_min_hz"]
     marche = [h is not None and h > 0 for h in G["hz"]]
