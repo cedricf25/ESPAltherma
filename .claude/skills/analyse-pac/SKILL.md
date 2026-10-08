@@ -31,6 +31,18 @@ maison stabilisée ; une remise en route à froid fausse les 24 premières heure
 Le script renvoie un JSON (pas de 1 min, quantiles p10/med/p90). Vérifier d'abord `couverture_%` :
 une entité sous ~80 % rend la section correspondante fragile — le dire.
 
+Puis lire `regime` : le propriétaire **coupe souvent la PAC et chauffe au bois**. Lois d'eau, pièces,
+`par_temperature_exterieure` et `cop_chauffage` ne portent que sur les `heures_analysables` : PAC en
+chauffe (`climate.room_temperature` = `heat`) depuis au moins `stabilisation_h` (24 h), hors
+`periodes_bois_probable`. Sous ~12 h analysables, **ne pas juger les lois d'eau** : le dire, et
+proposer d'attendre une période de chauffe PAC seule. La boucle compresseur, l'ECS et les dégivrages
+restent jugeables sur toute la période. `cop_chauffage_toutes_heures` inclut les heures de remise en
+route : à citer seulement faute de mieux, en le précisant.
+
+Le bois n'est pas instrumenté : il est **déduit** quand le salon ou la salle à manger dépassent la
+consigne Madoka de plus de `bois.seuil_k`. Une journée de soleil peut donner le même signe ; en cas
+de doute, demander au propriétaire s'il a fait du feu.
+
 Pour creuser un instant précis, l'historique brut reste accessible : `~/.ha-token.env`
 (`HA_URL`, `HA_TOKEN`), `GET /api/history/period/<début>?end_time=<fin>&filter_entity_id=…`
 — **toujours passer `end_time`**, sinon HA tronque à 24 h après le début. L'entité
@@ -69,8 +81,16 @@ haute pression) la rejoigne.
 - Juger une loi **par tranche de température extérieure** : la pente se corrige au point froid
   (−10 °C), le décalage en mi-saison au point doux (+20 °C). Une tranche ne renseigne que sur le
   point de la droite le plus proche.
-- Confort : `etage_moins_consigne` (thermostat 1er étage → radiateurs) et `piece_madoka_moins_consigne`
-  (Madoka, située dans la zone plancher — confirmé par le propriétaire le 2026-10-08).
+- Confort (`pieces`, `plus_froide_*`) : chaque pièce est comparée à **sa** consigne — la consigne
+  Madoka au rez-de-chaussée (Madoka, salon, salle à manger, tous en zone plancher), la consigne de
+  la **vanne thermostatique** à l'étage (radiateurs, consignes dans `reglages.json`).
+  - Pièce d'étage au-dessus de sa vanne → l'eau arrive trop chaude, la vanne freine : marge pour
+    baisser la loi radiateurs. **C'est la pièce la plus en retard qui fixe le minimum de la loi**
+    (`plus_froide_etage_moins_vanne`) ; si elle est au-dessus de sa vanne, toute la zone l'est.
+  - La **Mezzanine** est en rôle `info` : radiateur sous-dimensionné, vanne à 22 °C jamais atteinte,
+    et chauffée par l'air qui monte du bas. Ne jamais s'en servir pour juger la loi radiateurs.
+  - Les consignes de vanne sont approximatives (« autour de 20-21 ») : quelques dixièmes d'écart ne
+    signifient rien, raisonner sur la tendance.
 - Indices dans `indices` : ce sont des pistes calculées par seuils, à recouper, jamais des verdicts.
 
 Recommandations de loi d'eau :
@@ -121,10 +141,12 @@ Recommandations de loi d'eau :
 - `sensor.temperature_depart_eau_temperature` s'appelle « retour eau » dans HA mais mesure un départ.
 - **Aucun thermostat ne régule l'étage** (l'ancien thermostat Netatmo a été supprimé le 2026-10-08).
   Côté PAC, la demande de la zone radiateurs (« Thermostat 2 ») est à ON en permanence : les
-  radiateurs ne sont régulés que par la loi d'eau (la modulation Madoka ne concerne que le plancher).
-  Le script mesure l'étage à la Mezzanine (`sensor.thermometre_mezzanine_temperature`) et le compare
-  à `confort_etage` de `reglages.json` — un repère de confort, pas une consigne. D'autres
-  thermomètres existent par pièce (`sensor.thermometre_*`, `sensor.meter_*`).
+  radiateurs ne sont régulés que par la loi d'eau et les vannes thermostatiques (la modulation
+  Madoka ne concerne que le plancher).
+- Une période où la PAC était coupée (ex. du 01/10 au 08/10/2026) donne des heures de marche qui
+  sont de l'**ECS** : un COP calculé dessus ne dit rien du chauffage.
+- Si une vanne est changée de réglage ou une pièce ajoutée, mettre à jour `pieces` dans
+  `reglages.json` (avec `_maj`).
 - Heures : HA renvoie de l'UTC, le script affiche l'heure locale.
 
 ## 3. Restituer

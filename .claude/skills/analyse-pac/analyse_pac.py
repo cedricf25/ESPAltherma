@@ -43,9 +43,9 @@ NUM = {
     "rt": "sensor.espaltherma_temp_rt",
     "rt_set": "sensor.espaltherma_point_reglage_rt",
     "ecs_set": "sensor.espaltherma_point_reglage_dwh",
-    # Étage (radiateurs) : aucun thermostat ne le régule, la Mezzanine sert de repère de confort.
-    "etage": "sensor.thermometre_mezzanine_temperature",
 }
+# Marche/arrêt du chauffage (Onecta) : « heat » ou « off » quand le propriétaire coupe la PAC.
+CHAUFFAGE = "climate.room_temperature"
 TXT = {
     "mode": "sensor.espaltherma_operation",
     "degivrage": "sensor.espaltherma_degivrage",
@@ -155,16 +155,40 @@ def analyser(debut, fin):
     t0, t1 = debut.timestamp(), fin.timestamp()
     n = int((t1 - t0) // PAS)
 
-    brut = historique(url, jeton, list(NUM.values()) + list(TXT.values()), debut, fin)
+    pieces = reg["pieces"]
+    num = {**NUM, **{f"piece_{nom}": p["entite"] for nom, p in pieces.items()}}
+    brut = historique(url, jeton, list(num.values()) + list(TXT.values()), debut, fin)
     par_id = {s[0]["entity_id"]: s for s in brut if s}
     G, couverture = {}, {}
-    for cle, eid in {**NUM, **TXT}.items():
-        pts = [(ts(x), en_float(x["state"]) if cle in NUM else
+    for cle, eid in {**num, **TXT}.items():
+        pts = [(ts(x), en_float(x["state"]) if cle in num else
                 (None if x["state"] in ("unknown", "unavailable") else x["state"]))
                for x in par_id.get(eid, [])]
         G[cle] = grille(pts, t0, n)
         couverture[cle] = round(100 * sum(v is not None for v in G[cle]) / n) if n else 0
-    G["etage_set"] = [reg["confort_etage"]] * n
+
+    # Chauffage PAC actif, et heures écoulées depuis la dernière remise en route
+    # (historique pris en amont de la période pour connaître la dernière mise en marche).
+    stab_h = reg["stabilisation_h"]
+    amont = debut - timedelta(hours=stab_h)
+    hist_ch = (historique(url, jeton, [CHAUFFAGE], amont, fin) or [[]])[0]
+    pts_ch = [(ts(x), x["state"]) for x in hist_ch if x["state"] not in ("unknown", "unavailable")]
+    actif, connu, depuis_marche, remises = [], [], [], []
+    i, etat, t_on = 0, None, amont.timestamp() - stab_h * 3600  # inconnu au départ : supposé stabilisé
+    for k in range(n):
+        t = t0 + k * PAS
+        while i < len(pts_ch) and pts_ch[i][0] <= t:
+            nouvel = pts_ch[i][1]
+            if nouvel == "heat" and etat not in (None, "heat"):
+                t_on = pts_ch[i][0]
+                if t_on >= t0:
+                    remises.append(datetime.fromtimestamp(t_on).strftime("%d/%m %H:%M"))
+            etat = nouvel
+            i += 1
+        actif.append(etat == "heat")
+        connu.append(etat is not None)
+        depuis_marche.append((t - t_on) / 3600)
+    couverture["chauffage_pac"] = round(100 * sum(connu) / n) if n else 0
 
     hzmin = reg["references"]["compresseur_min_hz"]
     marche = [h is not None and h > 0 for h in G["hz"]]
@@ -181,7 +205,29 @@ def analyser(debut, fin):
     ecart_eau = diff("r2t", "lw_add")
     ecart_sol = diff("sol_dep", "lw_main")
     ecart_rt = diff("rt", "rt_set")
-    ecart_etage = diff("etage", "etage_set")
+
+    # Pièces : écart à la consigne de la vanne (étage) ou de la Madoka (bas).
+    ecart_piece = {}
+    for nom, p in pieces.items():
+        cons = G["rt_set"] if p["consigne"] == "madoka" else [p["consigne"]] * n
+        ecart_piece[nom] = [x - c if x is not None and c is not None else None
+                            for x, c in zip(G[f"piece_{nom}"], cons)]
+
+    # Poêle à bois probable : une pièce du bas nettement au-dessus de la consigne Madoka.
+    seuil = reg["bois"]["seuil_k"]
+    bois = [any((ecart_piece[nom][k] or 0) > seuil for nom in reg["bois"]["pieces"]) for k in range(n)]
+    # Régime analysable pour les lois d'eau : PAC en chauffe, stabilisée, sans bois.
+    regime = [a and d >= stab_h and not b for a, d, b in zip(actif, depuis_marche, bois)]
+
+    def plus_froide(zone):
+        """Écart minute par minute de la pièce repère la plus en retard sur sa consigne."""
+        noms = [nom for nom, p in pieces.items() if p["zone"] == zone and p["role"] == "repere"]
+        out = []
+        for k in range(n):
+            v = [ecart_piece[nom][k] for nom in noms if ecart_piece[nom][k] is not None]
+            out.append(min(v) if v else None)
+        return out
+    froide_rad, froide_pl = plus_froide("radiateurs"), plus_froide("plancher")
     ecart_tc = diff("tc", "tc_cib")
     dt_pac = diff("r2t", "r4t")
     dt_sol = diff("sol_dep", "sol_ret")
@@ -238,33 +284,42 @@ def analyser(debut, fin):
             "ext": f"{b}..{b + 3}", "heures": round(len(ks) / 60, 1),
             "marche_%": round(100 * sum(marche[k] for k in ks) / len(ks)),
             "hz_moy": moy([G["hz"][k] for k in ks if marche[k]]),
-            "cop": cop([chauffage[k] and k in dans for k in range(n)]),
-            "eau_moins_consigne_rad": moy([ecart_eau[k] for k in ks if chauffage[k]]),
-            "depart_sol_moins_consigne": moy([ecart_sol[k] for k in ks if marche[k]]),
-            "piece_madoka_moins_consigne": moy(pick(ecart_rt)),
-            "etage_moins_consigne": moy(pick(ecart_etage)),
+            "heures_regime": round(sum(regime[k] for k in ks) / 60, 1),
+            "cop": cop([chauffage[k] and regime[k] and k in dans for k in range(n)]),
+            "eau_moins_consigne_rad": moy([ecart_eau[k] for k in ks if chauffage[k] and regime[k]]),
+            "depart_sol_moins_consigne": moy([ecart_sol[k] for k in ks if marche[k] and regime[k]]),
+            "plus_froide_bas": moy([froide_pl[k] for k in ks if regime[k]]),
+            "plus_froide_etage": moy([froide_rad[k] for k in ks if regime[k]]),
             "loi_rad": round(loi(reg["loi_eau"]["radiateurs"], b + 1.5), 1),
             "loi_plancher": round(loi(reg["loi_eau"]["plancher"], b + 1.5), 1),
         })
 
     # Indices pour les réglages (à interpréter, pas des verdicts)
     indices = []
-    et_ok = part([v is not None and v >= -0.3 for v in ecart_etage], [v is not None for v in ecart_etage])
-    rt_ok = part([v is not None and v >= -0.3 for v in ecart_rt], [v is not None for v in ecart_rt])
-    eau_bas = moy(sel(ecart_eau, chauffage))
-    sol_ecart = moy(sel(ecart_sol, marche))
-    if et_ok is not None and eau_bas is not None:
-        if et_ok >= 70 and eau_bas < -1.5:
-            indices.append(f"RADIATEURS : l'étage tient sa consigne {et_ok} % du temps alors que l'eau est en moyenne "
-                           f"{eau_bas} K sous la loi → loi radiateurs probablement trop haute.")
-        if et_ok < 50 and eau_bas > -1:
-            indices.append(f"RADIATEURS : l'étage n'atteint sa consigne que {et_ok} % du temps avec une eau à la loi "
-                           f"({eau_bas} K) → loi radiateurs peut-être trop basse.")
-    if rt_ok is not None and sol_ecart is not None:
-        if rt_ok >= 80 and sol_ecart > -0.5:
-            indices.append(f"PLANCHER : la pièce Madoka tient sa consigne {rt_ok} % du temps → marge pour baisser la loi plancher.")
-        if rt_ok < 50 and sol_ecart > -0.5:
-            indices.append(f"PLANCHER : la pièce Madoka n'atteint sa consigne que {rt_ok} % du temps, départ à la loi → loi plancher peut-être trop basse.")
+    h_regime = sum(regime) / 60
+    if h_regime < 12:
+        indices.append(f"PÉRIODE INSUFFISANTE : {h_regime:.1f} h seulement de chauffage PAC stabilisé sans bois → "
+                       f"ne pas juger les lois d'eau sur cette période.")
+    else:
+        val = lambda s: [v for v in sel(s, regime) if v is not None]
+        et_ok = part([v >= -0.3 for v in val(froide_rad)], [True] * len(val(froide_rad)))
+        et_marge = part([v >= 0.5 for v in val(froide_rad)], [True] * len(val(froide_rad)))
+        bas_ok = part([v >= -0.3 for v in val(froide_pl)], [True] * len(val(froide_pl)))
+        bas_marge = part([v >= 0.5 for v in val(froide_pl)], [True] * len(val(froide_pl)))
+        eau_bas = moy(sel(ecart_eau, [c and r for c, r in zip(chauffage, regime)]))
+        sol_ecart = moy(sel(ecart_sol, [m and r for m, r in zip(marche, regime)]))
+        if et_marge is not None and et_marge >= 70:
+            indices.append(f"RADIATEURS : même la pièce de l'étage la plus en retard dépasse sa vanne de 0,5 K "
+                           f"{et_marge} % du temps → les vannes freinent, marge pour baisser la loi radiateurs.")
+        if et_ok is not None and et_ok < 50 and (eau_bas or 0) > -1:
+            indices.append(f"RADIATEURS : une pièce de l'étage n'atteint sa vanne que {et_ok} % du temps avec une eau "
+                           f"à la loi ({eau_bas} K) → loi radiateurs peut-être trop basse (vérifier quelle pièce).")
+        if bas_marge is not None and bas_marge >= 70 and (sol_ecart or 0) > -0.5:
+            indices.append(f"PLANCHER : toutes les pièces du bas dépassent la consigne Madoka de 0,5 K {bas_marge} % "
+                           f"du temps → marge pour baisser la loi plancher.")
+        if bas_ok is not None and bas_ok < 50 and (sol_ecart or 0) > -0.5:
+            indices.append(f"PLANCHER : une pièce du bas n'atteint la consigne Madoka que {bas_ok} % du temps, départ "
+                           f"à la loi → loi plancher peut-être trop basse.")
     if h_marche > 1 and demarrages / h_marche > 1.5:
         indices.append(f"CYCLES COURTS : {demarrages} démarrages pour {h_marche:.1f} h de marche.")
     if any((v or "") == "ON" for v in G["buh1"] + G["buh2"]):
@@ -281,11 +336,25 @@ def analyser(debut, fin):
         "couverture_%": couverture,
         "contexte": {
             "ext": quantiles(G["ext"]),
-            "piece_madoka": moy(G["rt"]), "consigne_madoka": moy(G["rt_set"]),
-            "etage": moy(G["etage"]), "consigne_etage": moy(G["etage_set"]),
+            "consigne_madoka": moy(G["rt_set"]),
             "modes_vus_en_marche_min": {m: sum(1 for x, mm in zip(G["mode"], marche) if mm and x == m)
                                        for m in set(G["mode"]) if m},
         },
+        "regime": {
+            "heures_pac_en_chauffe": round(sum(actif) / 60, 1),
+            "remises_en_route": remises,
+            "heures_bois_probable": round(sum(bois) / 60, 1),
+            "periodes_bois_probable": [f"{heure(d)} ({l} min)" for d, l in sequences(bois, 30)],
+            "heures_analysables": round(h_regime, 1),
+            "_note": f"Lois d'eau, pièces et COP chauffage calculés sur les seules heures analysables "
+                     f"(PAC en chauffe depuis ≥ {stab_h} h, sans bois probable).",
+        },
+        "pieces": {nom: {"zone": p["zone"], "role": p["role"],
+                         "consigne": p["consigne"] if p["consigne"] != "madoka" else moy(sel(G["rt_set"], regime)),
+                         "moy": moy(sel(G[f"piece_{nom}"], regime)),
+                         "moy_toute_periode": moy(G[f"piece_{nom}"]),
+                         "ecart": quantiles(sel(ecart_piece[nom], regime))}
+                   for nom, p in pieces.items()},
         "compresseur": {
             "heures_marche": round(h_marche, 1), "demarrages": demarrages,
             "cycle_marche_min": quantiles([l for _, l in runs]),
@@ -304,10 +373,10 @@ def analyser(debut, fin):
         "loi_eau": {
             "modulation_radiateurs": quantiles(sel(mod_rad, chauffage)),
             "modulation_plancher": quantiles(sel(mod_pl, chauffage)),
-            "eau_r2t_moins_consigne_rad": quantiles(sel(ecart_eau, chauffage)),
-            "depart_sol_moins_consigne_plancher": quantiles(sel(ecart_sol, marche)),
-            "piece_madoka_moins_consigne": quantiles(ecart_rt),
-            "etage_moins_consigne": quantiles(ecart_etage),
+            "eau_r2t_moins_consigne_rad": quantiles(sel(ecart_eau, [c and r for c, r in zip(chauffage, regime)])),
+            "depart_sol_moins_consigne_plancher": quantiles(sel(ecart_sol, [m and r for m, r in zip(marche, regime)])),
+            "plus_froide_bas_moins_consigne": quantiles(sel(froide_pl, regime)),
+            "plus_froide_etage_moins_vanne": quantiles(sel(froide_rad, regime)),
         },
         "delta_t": {
             "pac_r2t_r4t": quantiles(sel(dt_pac, chauffage)),
@@ -317,8 +386,10 @@ def analyser(debut, fin):
         },
         "energie": {
             "elec_kwh": round(elec_kwh, 2), "chaleur_kwh": round(chaleur_kwh, 2),
-            "cop_chauffage": cop(chauffage), "cop_global": cop(marche),
-            "temp_eau_moy_en_marche": moy(sel(G["r2t"], chauffage)),
+            "cop_chauffage": cop([c and r for c, r in zip(chauffage, regime)]),
+            "cop_chauffage_toutes_heures": cop([c and a for c, a in zip(chauffage, actif)]),
+            "cop_global": cop(marche),
+            "temp_eau_moy_en_marche": moy(sel(G["r2t"], [c and a for c, a in zip(chauffage, actif)])),
         },
         "ecs": {"ballon": quantiles(G["r5t"]), "consigne": moy(G["ecs_set"])},
         "degivrages": {"nombre": len(sequences([v == "ON" for v in G["degivrage"]])),

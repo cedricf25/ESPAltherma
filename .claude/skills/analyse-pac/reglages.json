@@ -27,6 +27,70 @@
     "scop_55": 3.58,
     "compresseur_min_hz": 20
   },
-  "confort_etage": 20.5,
-  "_confort_etage": "Température visée à l'étage (repère de confort, mesurée à la Mezzanine) : aucun thermostat ne la régule."
+  "_pieces": "Thermomètres de pièce. consigne = consigne de la vanne thermostatique (étage) ou \"madoka\" (rez-de-chaussée, régulé par la Madoka). role \"repere\" : sert à juger la loi d'eau de sa zone ; \"info\" : affiché seulement (Mezzanine chauffée par l'air montant du bas, radiateur sous-dimensionné).",
+  "pieces": {
+    "madoka": {
+      "entite": "sensor.espaltherma_temp_rt",
+      "zone": "plancher",
+      "consigne": "madoka",
+      "role": "repere"
+    },
+    "salon": {
+      "entite": "sensor.meter_salon_temperature",
+      "zone": "plancher",
+      "consigne": "madoka",
+      "role": "repere"
+    },
+    "salle_a_manger": {
+      "entite": "sensor.thermometre_salle_a_manger_temperature",
+      "zone": "plancher",
+      "consigne": "madoka",
+      "role": "repere"
+    },
+    "manon": {
+      "entite": "sensor.meter_2a9d",
+      "zone": "radiateurs",
+      "consigne": 20.5,
+      "role": "repere"
+    },
+    "thomas": {
+      "entite": "sensor.meter_ef28",
+      "zone": "radiateurs",
+      "consigne": 20.5,
+      "role": "repere"
+    },
+    "parents": {
+      "entite": "sensor.meter_a9be",
+      "zone": "radiateurs",
+      "consigne": 20,
+      "role": "repere"
+    },
+    "sdb_parents": {
+      "entite": "sensor.thermometre_salle_de_bain_temperature",
+      "zone": "radiateurs",
+      "consigne": 21,
+      "role": "repere"
+    },
+    "amis": {
+      "entite": "sensor.thermometre_amis_temperature",
+      "zone": "radiateurs",
+      "consigne": 20,
+      "role": "repere"
+    },
+    "mezzanine": {
+      "entite": "sensor.thermometre_mezzanine_temperature",
+      "zone": "radiateurs",
+      "consigne": 22,
+      "role": "info"
+    }
+  },
+  "_bois": "Poêle à bois non instrumenté : une minute est « bois probable » si une pièce du bas (hors Madoka) dépasse la consigne Madoka de plus de seuil_k. Ces minutes, les périodes PAC coupée et les heures qui suivent une remise en route sont exclues du jugement des lois d'eau.",
+  "bois": {
+    "pieces": [
+      "salon",
+      "salle_a_manger"
+    ],
+    "seuil_k": 1.0
+  },
+  "stabilisation_h": 24
 }
