@@ -1,0 +1,16 @@
+{
+  "_note": "Réglages relevés sur l'interface de la PAC. À mettre à jour à chaque modification, sinon l'analyse compare à de mauvaises valeurs.",
+  "_maj": "2026-10-08",
+  "loi_eau": {
+    "plancher":   { "ext_froid": -10, "eau_froid": 35, "ext_doux": 20, "eau_doux": 25 },
+    "radiateurs": { "ext_froid": -10, "eau_froid": 60, "ext_doux": 20, "eau_doux": 30 }
+  },
+  "modulation_max": 5,
+  "delta_t": { "primaire_chaud": 5, "secondaire": 12, "refroidissement": 3 },
+  "consigne_ecs": 40,
+  "references": {
+    "scop_35": 4.51,
+    "scop_55": 3.58,
+    "compresseur_min_hz": 20
+  }
+}
