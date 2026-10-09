@@ -109,11 +109,12 @@ def loi(cfg, ext):
     if ext is None:
         return None
     a, b = cfg["ext_froid"], cfg["ext_doux"]
+    dec = cfg.get("decalage", 0)  # Leaving Water Offset réglé dans Onecta
     if ext <= a:
-        return cfg["eau_froid"]
+        return cfg["eau_froid"] + dec
     if ext >= b:
-        return cfg["eau_doux"]
-    return cfg["eau_froid"] + (ext - a) * (cfg["eau_doux"] - cfg["eau_froid"]) / (b - a)
+        return cfg["eau_doux"] + dec
+    return cfg["eau_froid"] + (ext - a) * (cfg["eau_doux"] - cfg["eau_froid"]) / (b - a) + dec
 
 
 def moy(v):

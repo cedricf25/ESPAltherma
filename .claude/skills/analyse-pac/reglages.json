@@ -1,18 +1,21 @@
 {
   "_note": "Réglages relevés sur l'interface de la PAC. À mettre à jour à chaque modification, sinon l'analyse compare à de mauvaises valeurs.",
-  "_maj": "2026-10-08",
+  "_maj": "2026-10-09",
   "loi_eau": {
     "plancher": {
       "ext_froid": -10,
       "eau_froid": 35,
       "ext_doux": 20,
-      "eau_doux": 25
+      "eau_doux": 25,
+      "decalage": 0,
+      "_decalage": "Leaving Water Offset (Onecta, climate.leaving_water_offset), n'agit que sur la zone principale (plancher). Mis à −5 le 2026-10-09 de 07:30 à 07:35, revenu à 0."
     },
     "radiateurs": {
       "ext_froid": -10,
       "eau_froid": 60,
       "ext_doux": 20,
-      "eau_doux": 30
+      "eau_doux": 30,
+      "decalage": 0
     }
   },
   "modulation_max": 5,
