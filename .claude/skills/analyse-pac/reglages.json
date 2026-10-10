@@ -1,21 +1,48 @@
 {
   "_note": "Réglages relevés sur l'interface de la PAC. À mettre à jour à chaque modification, sinon l'analyse compare à de mauvaises valeurs.",
-  "_maj": "2026-10-09",
+  "_maj": "2026-10-10",
   "loi_eau": {
     "plancher": {
       "ext_froid": -10,
       "eau_froid": 35,
       "ext_doux": 20,
       "eau_doux": 25,
-      "decalage": 0,
-      "_decalage": "Leaving Water Offset (Onecta, climate.leaving_water_offset), n'agit que sur la zone principale (plancher). Mis à −5 le 2026-10-09 de 07:30 à 07:35, revenu à 0."
+      "decalage": [
+        {
+          "depuis": "2026-10-09T07:30",
+          "valeur": -5
+        },
+        {
+          "depuis": "2026-10-09T07:35",
+          "valeur": 0
+        },
+        {
+          "depuis": "2026-10-09T17:46",
+          "valeur": -3
+        },
+        {
+          "depuis": "2026-10-10T08:55",
+          "valeur": 0
+        }
+      ],
+      "_decalage": "Leaving Water Offset de la zone principale (plancher), climate.leaving_water_offset dans HA. Historique : la loi en vigueur à chaque minute = loi + dernière valeur dont « depuis » est passé. Appliqué le 2026-10-09 à 17:46 (chute de lw_main dans HA)."
     },
     "radiateurs": {
       "ext_froid": -10,
       "eau_froid": 60,
       "ext_doux": 20,
       "eau_doux": 30,
-      "decalage": 0
+      "decalage": [
+        {
+          "depuis": "2026-10-09T17:46",
+          "valeur": -6
+        },
+        {
+          "depuis": "2026-10-10T08:57",
+          "valeur": -5
+        }
+      ],
+      "_decalage": "Décalage de la zone additionnelle (radiateurs), réglé sur l'interface de la PAC, absent de HA. Appliqué le 2026-10-09 à 17:46 (chute de lw_add dans HA)."
     }
   },
   "modulation_max": 5,
@@ -95,5 +122,7 @@
     ],
     "seuil_k": 1.0
   },
-  "stabilisation_h": 24
+  "stabilisation_h": 24,
+  "surmodulation_9_04": 1,
+  "_surmodulation_9_04": "Relevé le 2026-10-10 sur l'interface ([4.B]). L'arrêt observé se fait pourtant vers consigne radiateurs +2,2 K."
 }

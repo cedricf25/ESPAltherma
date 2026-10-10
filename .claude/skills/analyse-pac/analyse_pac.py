@@ -27,6 +27,7 @@ NUM = {
     "tc": "sensor.espaltherma_haute_pression_temperature_saturation",
     "eev": "sensor.espaltherma_detendeur_electronique_1",
     "liq": "sensor.espaltherma_temperature_tuyau_liquide",
+    "bp": "sensor.espaltherma_basse_pression_temperature_saturation",
     "refoul": "sensor.espaltherma_temperature_tuyau_refoulement",
     "r1t": "sensor.espaltherma_temp_r1t",
     "r2t": "sensor.espaltherma_temp_r2t",
@@ -105,11 +106,25 @@ def grille(points, t0, n):
     return out
 
 
-def loi(cfg, ext):
+def decalage(cfg, t=None):
+    """Leaving Water Offset en vigueur à l'instant t (timestamp), le plus récent si t est None.
+    `decalage` est un nombre, ou un historique [{"depuis": "AAAA-MM-JJTHH:MM", "valeur": x}, ...]."""
+    d = cfg.get("decalage", 0)
+    if not isinstance(d, list):
+        return d
+    val = 0
+    for c in sorted(d, key=lambda c: c["depuis"]):
+        if t is not None and datetime.fromisoformat(c["depuis"]).timestamp() > t:
+            break
+        val = c["valeur"]
+    return val
+
+
+def loi(cfg, ext, t=None):
     if ext is None:
         return None
     a, b = cfg["ext_froid"], cfg["ext_doux"]
-    dec = cfg.get("decalage", 0)  # Leaving Water Offset réglé dans Onecta
+    dec = decalage(cfg, t)
     if ext <= a:
         return cfg["eau_froid"] + dec
     if ext >= b:
@@ -199,8 +214,8 @@ def analyser(debut, fin):
     diff = lambda a, b: [x - y if x is not None and y is not None else None for x, y in zip(G[a], G[b])]
     sel = lambda serie, masque: [v for v, m in zip(serie, masque) if m]
 
-    loi_rad = [loi(reg["loi_eau"]["radiateurs"], e) for e in G["ext"]]
-    loi_pl = [loi(reg["loi_eau"]["plancher"], e) for e in G["ext"]]
+    loi_rad = [loi(reg["loi_eau"]["radiateurs"], e, t0 + k * PAS) for k, e in enumerate(G["ext"])]
+    loi_pl = [loi(reg["loi_eau"]["plancher"], e, t0 + k * PAS) for k, e in enumerate(G["ext"])]
     mod_rad = [a - b if a is not None and b is not None else None for a, b in zip(G["lw_add"], loi_rad)]
     mod_pl = [a - b if a is not None and b is not None else None for a, b in zip(G["lw_main"], loi_pl)]
     ecart_eau = diff("r2t", "lw_add")
@@ -258,6 +273,16 @@ def analyser(debut, fin):
                 "sous_refroidissement_max": round(max((sous_ref[k] or 0) for k in range(d, d + l)), 1),
             })
         return res
+
+    # Pics de protection : à bas régime le détendeur se ferme et l'évaporation passe sous 0 °C,
+    # puis l'unité extérieure remonte d'office le compresseur (~32 Hz) malgré une cible en baisse.
+    pics = []
+    for k in range(2, n):
+        h0, h1 = G["hz"][k - 2] or 0, G["hz"][k] or 0
+        if (chauffage[k] and 0 < h0 <= 27 and h1 - h0 >= 5 and (G["eev"][k - 2] or 999) <= 95
+                and (G["bp"][k - 2] if G["bp"][k - 2] is not None else 99) < 0.5
+                and (not pics or k - pics[-1] > 10)):
+            pics.append(k)
 
     # Énergie et COP (pondéré par l'énergie, pas moyenne des COP instantanés)
     def cop(masque):
@@ -364,6 +389,7 @@ def analyser(debut, fin):
             "temps_au_minimum_%": part([(h or 0) <= hzmin + 2 for h in G["hz"]], marche),
             "episodes_bloque_au_min": episodes(bloque, 10),
             "minutes_eau_au_dessus_consigne": sum(depassement),
+            "pics_protection": [heure(k) for k in pics],
         },
         "boucle_frigo": {
             "cond_mesuree_moins_cible": quantiles(sel(ecart_tc, chauffage)),

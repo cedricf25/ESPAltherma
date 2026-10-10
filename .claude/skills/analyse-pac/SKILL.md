@@ -15,6 +15,9 @@ ESPAltherma et publiée dans Home Assistant. Voir le `CLAUDE.md` du dépôt pour
   une analyse. Les réglages se proposent, l'utilisateur les applique sur l'interface de la PAC.
 - **Vérifier `reglages.json` avant de conclure** sur les lois d'eau, la modulation ou le ΔT.
   Si l'utilisateur annonce un changement de réglage, mettre ce fichier à jour (avec `_maj`).
+  Un décalage (offset) se note en **historique** (`decalage: [{"depuis", "valeur"}]`), sans effacer
+  les entrées précédentes, pour que les périodes antérieures restent jugées avec l'ancien décalage ;
+  l'heure exacte se lit à la chute de `lw_main` / `lw_add` dans HA.
 - Répondre en français, en commençant par le verdict, puis les chiffres qui le justifient.
 
 ## 1. Collecter
@@ -64,9 +67,21 @@ haute pression) la rejoigne.
   de la cible alors que l'eau baisse. Le compresseur reste au minimum jusqu'à ce que le détendeur se
   rouvre (~20-30 min). **Transitoire frigorifique, pas un problème de loi d'eau.** Alerter seulement
   s'il dure plus d'une heure, se répète à chaque cycle, ou si l'eau décroche de plus de 5 K.
+- **Pic de protection** (`pics_protection`, observé le 2026-10-09 par ~6 °C ext.) : à 24-27 Hz le
+  détendeur se ferme (< 90 pas) et l'évaporation passe sous 0 °C ; l'unité extérieure remonte alors
+  d'office à ~32 Hz alors que `tc_cib` baisse, l'eau dépasse la consigne radiateurs de ~2,5 K et la
+  PAC s'arrête (thermo OFF). Protection de la machine, sans gravité ; levier indirect : loi radiateurs
+  plus basse. À signaler à l'installateur seulement s'il persiste par temps doux ou eau basse.
 - `temps_au_minimum_%` élevé et `demarrages` nombreux en mi-saison = PAC surdimensionnée pour le
   besoin du moment : la baisse de la loi d'eau (point doux) est le premier levier.
 - Cycles courts : moins de ~20 min de marche ou plus de ~1,5 démarrage par heure de marche.
+  Mécanisme observé le 2026-10-10 (11 °C dehors, loi radiateurs −6) : démarrage à 28 Hz, 20 Hz au
+  bout de ~5 min, l'eau monte jusqu'à la consigne radiateurs **+2,2 K**, arrêt, puis **7 min d'arrêt
+  fixes** (temporisation anti-court-cycle : l'eau repasse sous la consigne bien avant le redémarrage).
+  Cycle de ~30 min, soit 2 démarrages/h. Leviers, du plus gratuit au plus coûteux : remonter la loi
+  **plancher** tant qu'elle reste sous la consigne radiateurs (la production ne change pas, la dalle
+  absorbe plus) ; augmenter la surmodulation **[9-04]** (menu [4.B], 1-4 °C, défaut 1 °C) ; laisser les
+  vannes thermostatiques ouvertes. Baisser la loi radiateurs raccourcit les cycles (moins d'émission).
 - Refoulement durablement > 90 °C ou sous-refroidissement > 15 K hors transitoire : à signaler
   (charge de fluide, détendeur) — c'est du ressort d'un frigoriste, ne pas proposer de réglage.
 
