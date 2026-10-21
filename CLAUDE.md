@@ -89,8 +89,9 @@ d entrée (R4T) » ne désignent pas les mêmes sondes que les R1T/R4T du guide.
   vers 2-3 K : la pompe principale est au minimum (signal 80) et les pompes de zone imposent le débit.
 - **Lois d'eau** : plancher (zone principale) 35 °C à −10 °C ext. → 25 °C à +20 °C ; radiateurs
   (zone additionnelle) 60 °C à −10 °C → 30 °C à +20 °C. `0x60,9` « Point de réglage LW (principal) »
-  et `0x62,3` « Point de réglage LW (ajouté) » suivent exactement ces droites (27,8 et 38,6 °C pour ~11 °C
-  extérieur). La PAC produit à la consigne la plus haute, celle des radiateurs, et la vanne M1S
+  et `0x62,3` « Point de réglage LW (ajouté) » suivent ces droites augmentées du décalage de chaque zone
+  (27,8 et 38,6 °C pour ~11 °C extérieur sans décalage) ; les décalages en vigueur et leur historique
+  sont dans `.claude/skills/analyse-pac/reglages.json`. La PAC produit à la consigne la plus haute, celle des radiateurs, et la vanne M1S
   redescend l'eau à la consigne du plancher.
 
 Définitions pertinentes : série **EPRA D 14-18 kW avec intérieure ETV/ETB/ETVZ16**, protocole **I**. `src/setup.h` pointe sur `def/French/Altherma(EPRA D_D7 ETV16-ETB16-ETVZ16 E_E7 series 14-18kW).h`, qui couvre la taille 18 (l'ancien `... D series 14-16kW).h` reste dans le dépôt, ses 84 labels toujours activés). Les définitions LT, Monobloc, GEO, ECH2O et Mini chiller ne concernent pas cette machine.

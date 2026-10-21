@@ -114,8 +114,9 @@ Recommandations de loi d'eau :
 - Pièces sous la consigne alors que l'eau suit la loi → monter.
 - Ordre de grandeur de gain : ~2-3 % de COP par °C d'eau en moins. Références constructeur :
   SCOP 4,51 à 35 °C d'eau, 3,58 à 55 °C.
-- Repères : plancher 30-35 °C à −10 °C ; radiateurs basse température 45-55 °C. La loi radiateurs
-  actuelle (60 °C à −10 °C) est une loi de chaudière : piste d'amélioration prioritaire cet hiver.
+- Repères : plancher 30-35 °C à −10 °C ; radiateurs basse température 45-55 °C. Comparer la loi
+  radiateurs effective (droite + décalage en vigueur dans `reglages.json`) à ce repère : au-dessus de
+  55 °C à −10 °C, c'est une loi de chaudière et la piste d'amélioration prioritaire.
 
 ### ΔT et débit (`delta_t`)
 
