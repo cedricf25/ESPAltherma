@@ -9,10 +9,7 @@ Firmware PlatformIO/Arduino (C++) pour ESP32/ESP8266/M5StickC qui interroge le p
 ## Commandes
 
 ```bash
-pio run                       # build de l'env par défaut (esp32)
 pio run -e m5stickcplus       # autres envs: nodemcuv2, esp32, m5stickc, m5stickcplus, m5stickcplus2, native
-pio run -t upload             # flash USB
-pio device monitor            # logs série (115200)
 pio test -e native -v         # tests unitaires (nécessite g++ dans le PATH)
 pio test -e native -f test_rotex_protocol   # un seul fichier de test
 ```
@@ -116,12 +113,9 @@ Boucle principale (`loop()` dans main.cpp) : pour chaque registre de `registryID
 
 Fichiers clés :
 
-- [include/labeldef.h](include/labeldef.h) — classe `LabelDef` : `{registryID, offset, convid, dataSize, dataType, label}`. C'est le format de chaque ligne des fichiers `def/`.
 - [include/def/](include/def/) — une définition par modèle de PAC (+ traductions dans `French/`, `German/`, `Spanish/`, `Italian/`, `Japanese/`). Les lignes commentées sont les valeurs non interrogées ; `initRegistries()` déduit la liste des registres à interroger des lignes actives (max 32 registres, message JSON limité à `MAX_MSG_SIZE`).
 - [include/converters.h](include/converters.h) — classe `Converter` : `convert()` est un gros `switch` sur `convid` (100–119 signés, 151–165 non signés, 200+ tables d'énumération) qui remplit `LabelDef::asString`. Ces conversions sont reprises du logiciel Daikin DChecker ; les modifier casse la compatibilité des fichiers `def/`.
 - [include/comm.h](include/comm.h) — trame série 9600 8E1, CRC = somme inversée. Deux protocoles : **I** (par défaut, requête `03 40 <reg> <crc>`, longueur de réponse dynamique lue au 3ᵉ octet) et **S** (requête `02 <reg> <crc>`, longueurs codées en dur par registre). Le protocole vient de la macro `PROTOCOL`, qu'un fichier `def/` peut surcharger (cf. [PROTOCOL_S_ROTEX.h](include/def/PROTOCOL_S_ROTEX.h)). L'offset de données diffère selon le protocole (1 pour S, 3 pour I).
-- [include/mqtt.h](include/mqtt.h) — connexion/reconnexion, LWT, publication des configs d'auto-découverte HA, callbacks des topics `espaltherma/POWER`, `espaltherma/sg/set`, `espaltherma/SAFETY`. L'état du thermostat est persisté en EEPROM et restauré au boot.
-- [include/mqttserial.h](include/mqttserial.h) — `Stream` qui duplique les logs sur `Serial`, l'écran M5 et le topic MQTT `espaltherma/log`.
 
 Les variantes matérielles sont gérées par `#ifdef` (`ARDUINO_ARCH_ESP8266`, `ARDUINO_M5Stick_C`, `ARDUINO_M5Stick_C_Plus`, `ARDUINO_M5Stick_C_Plus2`) ; les fonctionnalités optionnelles par la présence de macros (`PIN_SG1`, `SAFETY_RELAY_PIN`, `MQTT_ENCRYPTED`, `ONEVAL_ONETOPIC`, `JSONTABLE`, `DISABLE_LOG_MESSAGES`). Toute nouvelle option de config suit ce schéma : macro commentée dans `setup.h` + blocs `#ifdef`.
 
