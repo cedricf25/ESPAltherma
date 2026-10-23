@@ -1,6 +1,6 @@
 {
   "_note": "Réglages relevés sur l'interface de la PAC. À mettre à jour à chaque modification, sinon l'analyse compare à de mauvaises valeurs.",
-  "_maj": "2026-10-10",
+  "_maj": "2026-10-23",
   "loi_eau": {
     "plancher": {
       "ext_froid": -10,
@@ -40,6 +40,18 @@
         {
           "depuis": "2026-10-10T08:57",
           "valeur": -5
+        },
+        {
+          "depuis": "2026-10-14T05:15",
+          "valeur": -3
+        },
+        {
+          "depuis": "2026-10-17T07:57",
+          "valeur": 0
+        },
+        {
+          "depuis": "2026-10-23T02:51",
+          "valeur": -3
         }
       ],
       "_decalage": "Décalage de la zone additionnelle (radiateurs), réglé sur l'interface de la PAC, absent de HA. Appliqué le 2026-10-09 à 17:46 (chute de lw_add dans HA)."
