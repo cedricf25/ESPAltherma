@@ -151,6 +151,15 @@
     "seuil_k": 1.0
   },
   "stabilisation_h": 24,
-  "surmodulation_9_04": 1,
-  "_surmodulation_9_04": "Relevé le 2026-10-10 sur l'interface ([4.B]). L'arrêt observé se fait pourtant vers consigne radiateurs +2,2 K."
+  "surmodulation_9_04": [
+    {
+      "depuis": "2026-10-10",
+      "valeur": 1
+    },
+    {
+      "depuis": "2026-11-18T07:35",
+      "valeur": 2
+    }
+  ],
+  "_surmodulation_9_04": "Menu [4.B] de l'interface ; heure du passage à 2 = heure de l'annonce. Référence à 1 (11-18/11/2026) : arrêt à consigne radiateurs +2,5 K ; entre 12 et 15 °C dehors, 3,5 démarrages par heure de marche, cycle médian 18 min, 26 cycles sur 71 sous 10 min."
 }
