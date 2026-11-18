@@ -1,6 +1,6 @@
 {
   "_note": "Réglages relevés sur l'interface de la PAC. À mettre à jour à chaque modification, sinon l'analyse compare à de mauvaises valeurs.",
-  "_maj": "2026-10-23",
+  "_maj": "2026-11-18",
   "loi_eau": {
     "plancher": {
       "ext_froid": -10,
@@ -63,7 +63,23 @@
     "secondaire": 12,
     "refroidissement": 3
   },
-  "consigne_ecs": 40,
+  "consigne_ecs": {
+    "plage_nuit": "22:01-05:01",
+    "chauffe_observee": "vers 02:30, une fois par nuit",
+    "historique": [
+      {
+        "depuis": "2026-11-11",
+        "jour": 40,
+        "nuit": 50
+      },
+      {
+        "depuis": "2026-11-16T18:52",
+        "jour": 42,
+        "nuit": 55
+      }
+    ]
+  },
+  "_consigne_ecs": "Lu dans sensor.espaltherma_point_reglage_dwh (non relevé sur l'interface). La consigne change d'elle-même entre jour et nuit ; le passage à 55 °C de nuit date du 2026-11-16 à 22:01.",
   "references": {
     "scop_35": 4.51,
     "scop_55": 3.58,

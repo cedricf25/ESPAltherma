@@ -71,7 +71,9 @@ haute pression) la rejoigne.
   détendeur se ferme (< 90 pas) et l'évaporation passe sous 0 °C ; l'unité extérieure remonte alors
   d'office à ~32 Hz alors que `tc_cib` baisse, l'eau dépasse la consigne radiateurs de ~2,5 K et la
   PAC s'arrête (thermo OFF). Protection de la machine, sans gravité ; levier indirect : loi radiateurs
-  plus basse. À signaler à l'installateur seulement s'il persiste par temps doux ou eau basse.
+  plus basse. À signaler à l'installateur seulement s'il persiste par temps doux ou eau basse
+  (`pics_a_6C_ou_plus`, `pics_suivis_d_un_arret_sous_7_min`). Du 11 au 18/11/2026 : 28 pics, dont 12 à
+  6 °C ou plus ; le 14/11, évaporation jusqu'à −10 °C pour 6-7,6 °C dehors, détendeur à 46-48 pas.
 - `temps_au_minimum_%` élevé et `demarrages` nombreux en mi-saison = PAC surdimensionnée pour le
   besoin du moment : la baisse de la loi d'eau (point doux) est le premier levier.
 - Cycles courts : moins de ~20 min de marche ou plus de ~1,5 démarrage par heure de marche.
@@ -82,6 +84,10 @@ haute pression) la rejoigne.
   **plancher** tant qu'elle reste sous la consigne radiateurs (la production ne change pas, la dalle
   absorbe plus) ; augmenter la surmodulation **[9-04]** (menu [4.B], 1-4 °C, défaut 1 °C) ; laisser les
   vannes thermostatiques ouvertes. Baisser la loi radiateurs raccourcit les cycles (moins d'émission).
+  Remonter la loi plancher n'a d'intérêt que si le bas n'est pas déjà au-dessus de la consigne.
+  Lire `par_temperature_exterieure` (`demarrages_par_h_marche`, `cycles_moins_10_min`) et
+  `eau_moins_consigne_rad_a_l_arret` : du 11 au 18/11/2026, 3,5 démarrages/h entre 12 et 15 °C contre
+  1,1 ou moins sous 9 °C, arrêt à la consigne +2,5 K alors que [9-04] vaut 1.
 - Refoulement durablement > 90 °C ou sous-refroidissement > 15 K hors transitoire : à signaler
   (charge de fluide, détendeur) — c'est du ressort d'un frigoriste, ne pas proposer de réglage.
 
@@ -135,14 +141,25 @@ Recommandations de loi d'eau :
 - La chaleur est estimée par débit × (R1T − R4T) : imprécise quand le ΔT est faible (±0,5 K de sonde
   = ±20 % à 2 K). Juger le COP sur plusieurs jours, et l'inscrire dans la tendance par tranche
   d'extérieur plutôt que sur une valeur isolée.
+- **Biais de sondes** : compresseur arrêté, pompe en marche, R1T lit 0,3-0,4 K de moins que R4T
+  (`ecart_repos_r1t_r4t`, mesuré à chaque analyse sur les fins d'arrêt). Le COP brut est donc
+  probablement sous-estimé d'environ 15 % à 2 K de ΔT, et il paraît à tort meilleur par grand froid,
+  où le ΔT est plus grand. Citer `cop_chauffage` **et** `cop_chauffage_corrige` ; le corrigé reste
+  une estimation (une perte réelle dans l'unité peut expliquer une part de l'écart).
 - Comparer à l'attendu selon `temp_eau_moy_en_marche` (interpoler entre 4,5 à 35 °C et 3,6 à 55 °C,
   plus haut par temps doux).
 
 ### ECS, dégivrages, appoint
 
-- Ballon (R5T) vs consigne ECS ; le passage en ECS se voit au mode et à la montée de R5T.
-- Dégivrages : normaux sous ~7 °C extérieur et par temps humide ; fréquents au-dessus de 10 °C =
-  anormal.
+- Ballon (R5T) vs consigne ECS (`consigne_ecs` dans `reglages.json` : consigne de jour et de nuit).
+  Le ballon ne chauffe qu'**une fois par nuit, vers 02 h 30** : après un gros soutirage
+  (`chutes_ballon`), il reste froid jusque-là, même sous la consigne de jour (le 15/11/2026 : 47,6 →
+  22,7 °C en soirée, réchauffé à 02 h 24).
+- Les chauffes ECS sont détectées à la montée de R5T (`ecs.chauffes`) et exclues du chauffage.
+- Dégivrages : normaux sous ~7 °C extérieur et par temps humide ; fréquents au-dessus de 10 °C
+  (`au_dessus_de_10C`) = anormal. Ceux qui partent d'une évaporation nettement positive
+  (`evaporation_positive_avant`), espacés de 6-9 h, ressemblent à un cycle périodique plutôt qu'à du
+  givre : à surveiller sans alerter.
 - Appoint électrique (BUH) enclenché hors grand froid ou dégivrage : à signaler (loi trop haute pour
   la puissance, consigne ECS trop haute, réglage d'équilibre).
 
@@ -152,6 +169,8 @@ Recommandations de loi d'eau :
   pas de 2,56 °C : utiliser les sondes Shelly (`sensor.temperature_depart_sol_temperature`,
   `sensor.temperature_retour_sol_temperature`).
 - La position de la vanne M1S n'est pas publiée par la machine.
+- `sensor.espaltherma_operation` reste à « Heating » pendant l'ECS : ne pas s'en servir pour la
+  repérer. R4T est transmise par pas de 0,5 °C.
 - `sensor.espaltherma_target_delta_primaire` = ΔT cible **secondaire** chauffage (12),
   `…_secondaire` = ΔT de **refroidissement** (3) : les `entity_id` sont trompeurs.
 - `sensor.temperature_depart_eau_temperature` s'appelle « retour eau » dans HA mais mesure un départ.

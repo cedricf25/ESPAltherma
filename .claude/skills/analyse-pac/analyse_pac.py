@@ -55,6 +55,12 @@ TXT = {
     "huile": "sensor.espaltherma_commande_retour_huile",
 }
 PAS = 60  # secondes
+ECS_FENETRE_MIN = 10  # chauffe du ballon : montée de R5T d'au moins ECS_MONTEE_K sur cette fenêtre
+ECS_MONTEE_K = 0.8
+CHUTE_BALLON_K = 10  # soutirage important : baisse de R5T sur 60 min
+ARRET_BIAIS_MIN = 6  # durée d'arrêt minimale pour mesurer l'écart de repos R1T − R4T
+CP_EAU = 4186 / 60  # W par (l/min) et par K
+TROU_MAX_MIN = 5  # trous de données comblés par la dernière valeur connue
 
 
 def env():
@@ -103,6 +109,16 @@ def grille(points, t0, n):
             cur = points[i][1]
             i += 1
         out.append(cur)
+    return out
+
+
+def combler(serie, max_pas=TROU_MAX_MIN):
+    """Prolonge la dernière valeur sur les trous courts : une coupure de quelques minutes de l'ESP
+    ne doit créer ni faux arrêt du compresseur, ni dégivrage fragmenté."""
+    out = list(serie)
+    for d, l in sequences([v is None for v in out]):
+        if d > 0 and l <= max_pas:
+            out[d:d + l] = [out[d - 1]] * l
     return out
 
 
@@ -182,6 +198,7 @@ def analyser(debut, fin):
                for x in par_id.get(eid, [])]
         G[cle] = grille(pts, t0, n)
         couverture[cle] = round(100 * sum(v is not None for v in G[cle]) / n) if n else 0
+        G[cle] = combler(G[cle])
 
     # Chauffage PAC actif, et heures écoulées depuis la dernière remise en route
     # (historique pris en amont de la période pour connaître la dernière mise en marche).
@@ -208,9 +225,16 @@ def analyser(debut, fin):
 
     hzmin = reg["references"]["compresseur_min_hz"]
     marche = [h is not None and h > 0 for h in G["hz"]]
+    degivrage = [v == "ON" for v in G["degivrage"]]
+    # `operation` reste à « Heating » pendant l'ECS : la chauffe du ballon se lit à la montée de R5T.
+    ecs = [False] * n
+    for k in range(ECS_FENETRE_MIN, n):
+        a, b = G["r5t"][k - ECS_FENETRE_MIN], G["r5t"][k]
+        if marche[k] and a is not None and b is not None and b - a >= ECS_MONTEE_K:
+            ecs[k - ECS_FENETRE_MIN:k + 1] = [True] * (ECS_FENETRE_MIN + 1)
     # Mode inconnu (capteur indisponible) : compté comme chauffage, signalé par la couverture.
-    chauffage = [m and (md is None or md.lower().startswith("heat")) and dg != "ON"
-                 for m, md, dg in zip(marche, G["mode"], G["degivrage"])]
+    chauffage = [m and (md is None or md.lower().startswith("heat")) and not dg and not e
+                 for m, md, dg, e in zip(marche, G["mode"], degivrage, ecs)]
     diff = lambda a, b: [x - y if x is not None and y is not None else None for x, y in zip(G[a], G[b])]
     sel = lambda serie, masque: [v for v, m in zip(serie, masque) if m]
 
@@ -284,34 +308,68 @@ def analyser(debut, fin):
                 and (not pics or k - pics[-1] > 10)):
             pics.append(k)
 
+    # Écart de repos des sondes : en fin d'arrêt, la pompe tourne sans apport de chaleur et
+    # R1T − R4T devrait être quasi nul. Sa médiane mesure le biais du ΔT servant à la chaleur.
+    ecarts_repos = []
+    for d, l in arrets:
+        k = d + l - 1
+        if (d > 0 and l >= ARRET_BIAIS_MIN and d + l < n and not any(degivrage[max(0, d - 5):d + l])
+                and G["r1t"][k] is not None and G["r4t"][k] is not None):
+            ecarts_repos.append(G["r1t"][k] - G["r4t"][k])
+    biais_repos = statistics.median(ecarts_repos) if len(ecarts_repos) >= 20 else None
+
     # Énergie et COP (pondéré par l'énergie, pas moyenne des COP instantanés)
-    def cop(masque):
-        q = sum(c for c, m in zip(G["chaleur"], masque) if m and c is not None)
-        e = sum(p for p, m in zip(G["elec"], masque) if m and p is not None)
+    def cop(masque, corrige=False):
+        q = e = 0
+        for k, m in enumerate(masque):
+            if not m:
+                continue
+            c, p = G["chaleur"][k], G["elec"][k]
+            if c is not None:
+                q += c
+                if corrige and G["debit"][k] is not None:
+                    q -= biais_repos * G["debit"][k] * CP_EAU
+            if p is not None:
+                e += p
         return round(q / e, 2) if e > 0 else None
+
+    def cop_corrige(masque):
+        return cop(masque, corrige=True) if biais_repos is not None else None
 
     elec_kwh = sum(p for p in G["elec"] if p is not None) * PAS / 3.6e6
     chaleur_kwh = sum(c for c, m in zip(G["chaleur"], marche) if m and c is not None) * PAS / 3.6e6
 
     # Par tranche de température extérieure (3 °C)
+    tranche = lambda e: int((e // 3) * 3)
     tranches = {}
     for k in range(n):
         e = G["ext"][k]
         if e is None:
             continue
-        b = int((e // 3) * 3)
-        tranches.setdefault(b, []).append(k)
+        tranches.setdefault(tranche(e), []).append(k)
+    # Cycles complets, rattachés à la température extérieure de leur démarrage
+    cycles_par_tranche = {}
+    for d, l in runs:
+        if d > 0 and d + l < n and G["ext"][d] is not None:
+            cycles_par_tranche.setdefault(tranche(G["ext"][d]), []).append(l)
     par_ext = []
     for b in sorted(tranches):
         ks = tranches[b]
         dans = set(ks)
-        pick = lambda s: [s[k] for k in ks]
+        cycles = cycles_par_tranche.get(b, [])
+        masque_cop = [chauffage[k] and regime[k] and k in dans for k in range(n)]
         par_ext.append({
             "ext": f"{b}..{b + 3}", "heures": round(len(ks) / 60, 1),
             "marche_%": round(100 * sum(marche[k] for k in ks) / len(ks)),
             "hz_moy": moy([G["hz"][k] for k in ks if marche[k]]),
             "heures_regime": round(sum(regime[k] for k in ks) / 60, 1),
-            "cop": cop([chauffage[k] and regime[k] and k in dans for k in range(n)]),
+            "cycles": len(cycles),
+            "cycle_median_min": statistics.median(cycles) if cycles else None,
+            "cycles_moins_10_min": sum(1 for l in cycles if l < 10),
+            "demarrages_par_h_marche": round(60 * len(cycles) / sum(cycles), 2) if cycles else None,
+            # Sous 1 h de chauffage, le rapport n'a pas de sens (inertie après un dégivrage, etc.)
+            "cop": cop(masque_cop) if sum(masque_cop) >= 60 else None,
+            "cop_corrige": cop_corrige(masque_cop) if sum(masque_cop) >= 60 else None,
             "eau_moins_consigne_rad": moy([ecart_eau[k] for k in ks if chauffage[k] and regime[k]]),
             "depart_sol_moins_consigne": moy([ecart_sol[k] for k in ks if marche[k] and regime[k]]),
             "plus_froide_bas": moy([froide_pl[k] for k in ks if regime[k]]),
@@ -355,6 +413,31 @@ def analyser(debut, fin):
         indices.append(f"MODULATION : consigne radiateurs décalée de la loi entre {min(mr):+.1f} et {max(mr):+.1f} K "
                        f"(max réglé ±{reg['modulation_max']}).")
 
+    # Eau au moment où le compresseur s'arrête, hors dégivrage et chauffe ECS
+    eau_a_l_arret = [ecart_eau[d + l - 1] for d, l in runs
+                     if d + l < n and not any(degivrage[max(0, d + l - 3):d + l + 1])
+                     and not ecs[d + l - 1]]
+
+    def minutes_avant_arret(k):
+        j = k
+        while j < n and marche[j]:
+            j += 1
+        return j - k
+
+    # Chauffes du ballon et soutirages importants
+    chauffes_ecs = [{"debut": heure(d), "minutes": l, "r5t": [G["r5t"][d], G["r5t"][d + l - 1]],
+                     "consigne": G["ecs_set"][d]} for d, l in sequences(ecs, 5)]
+    chutes = [False] * n
+    for k in range(60, n):
+        a, b = G["r5t"][k - 60], G["r5t"][k]
+        chutes[k] = a is not None and b is not None and a - b >= CHUTE_BALLON_K
+    chutes_ballon = [{"debut": heure(max(0, d - 60)), "r5t_mini": min(v for v in G["r5t"][d:d + l] if v is not None)}
+                     for d, l in sequences(chutes)]
+
+    # Dégivrages : température extérieure et évaporation juste avant, compresseur en marche
+    seq_degivrage = sequences(degivrage)
+    evap_avant = [G["bp"][max(0, d - 3)] for d, _ in seq_degivrage if marche[max(0, d - 3)]]
+
     return {
         "periode": {"debut": debut.astimezone().strftime("%d/%m %H:%M"), "fin": fin.astimezone().strftime("%d/%m %H:%M"),
                     "heures": round(n / 60, 1)},
@@ -389,7 +472,10 @@ def analyser(debut, fin):
             "temps_au_minimum_%": part([(h or 0) <= hzmin + 2 for h in G["hz"]], marche),
             "episodes_bloque_au_min": episodes(bloque, 10),
             "minutes_eau_au_dessus_consigne": sum(depassement),
+            "eau_moins_consigne_rad_a_l_arret": quantiles(eau_a_l_arret),
             "pics_protection": [heure(k) for k in pics],
+            "pics_a_6C_ou_plus": sum(1 for k in pics if (G["ext"][k] if G["ext"][k] is not None else -99) >= 6),
+            "pics_suivis_d_un_arret_sous_7_min": sum(1 for k in pics if minutes_avant_arret(k) <= 7),
         },
         "boucle_frigo": {
             "cond_mesuree_moins_cible": quantiles(sel(ecart_tc, chauffage)),
@@ -414,13 +500,25 @@ def analyser(debut, fin):
         "energie": {
             "elec_kwh": round(elec_kwh, 2), "chaleur_kwh": round(chaleur_kwh, 2),
             "cop_chauffage": cop([c and r for c, r in zip(chauffage, regime)]),
+            "cop_chauffage_corrige": cop_corrige([c and r for c, r in zip(chauffage, regime)]),
+            "ecart_repos_r1t_r4t": {"mediane": round(biais_repos, 2) if biais_repos is not None else None,
+                                    "arrets": len(ecarts_repos)},
             "cop_chauffage_toutes_heures": cop([c and a for c, a in zip(chauffage, actif)]),
             "cop_global": cop(marche),
             "temp_eau_moy_en_marche": moy(sel(G["r2t"], [c and a for c, a in zip(chauffage, actif)])),
         },
-        "ecs": {"ballon": quantiles(G["r5t"]), "consigne": moy(G["ecs_set"])},
-        "degivrages": {"nombre": len(sequences([v == "ON" for v in G["degivrage"]])),
-                       "minutes": sum(1 for v in G["degivrage"] if v == "ON")},
+        "ecs": {"ballon": quantiles(G["r5t"]), "consigne": moy(G["ecs_set"]),
+                "consignes_vues": sorted({v for v in G["ecs_set"] if v is not None}),
+                "chauffes": chauffes_ecs,
+                "minutes_chauffe": sum(ecs),
+                "elec_kwh_chauffe": round(sum(p for p, e in zip(G["elec"], ecs) if e and p is not None)
+                                          * PAS / 3.6e6, 1),
+                "chutes_ballon": chutes_ballon},
+        "degivrages": {"nombre": len(seq_degivrage),
+                       "minutes": sum(degivrage),
+                       "au_dessus_de_10C": sum(1 for d, _ in seq_degivrage
+                                               if (G["ext"][d] if G["ext"][d] is not None else -99) > 10),
+                       "evaporation_positive_avant": sum(1 for v in evap_avant if v is not None and v >= 3)},
         "par_temperature_exterieure": par_ext,
         "indices": indices,
     }
