@@ -61,6 +61,15 @@ haute pression) la rejoigne.
 
 - `tc < tc_cib` → il manque de la chaleur, le compresseur accélère ; `tc > tc_cib` → il ralentit.
 - Minimum mécanique : **20 Hz**. En dessous des besoins, il ne peut que s'arrêter.
+- **Plancher relevé par temps froid** : quand l'évaporation passe sous 0 °C (en pratique sous ~3 °C
+  dehors), l'unité extérieure ne descend plus à 20 Hz et reste vers **32 Hz** (~2,1 kW électriques),
+  même quand la condensation dépasse sa cible de plusieurs K. Du 11 au 25/11/2026, quand
+  `tc > tc_cib + 2` : 32 Hz en médiane entre 0 et 3 °C (2 % du temps de marche à 20 Hz, évaporation
+  moyenne −2,7 °C), contre 20 Hz au-dessus de 3 °C (59 à 80 % du temps à 20 Hz, évaporation positive).
+  Protection de la machine, non réglable. Conséquence : par temps froid, si la maison demande moins que
+  ces 32 Hz, l'eau monte jusqu'au seuil d'arrêt (consigne radiateurs + ~3,5 K avec [9-04] à 2) et la
+  PAC s'arrête 7-8 min (cas du 25/11/2026 à 05:45). Ce n'est pas un défaut de modulation ; des cycles
+  d'environ 1 h restent tout à fait corrects.
 - **Épisode « bloqué au minimum »** (`episodes_bloque_au_min`) : déjà observé le 2026-10-08. L'eau
   dépasse sa consigne → descente à 20 Hz → le détendeur se ferme (278 → 126 pas), le fluide
   s'accumule au condenseur (sous-refroidissement 4 → 11 K), la condensation mesurée monte au-dessus
